@@ -1,0 +1,5 @@
+# membres du groupe admins : tous les droits (avec leur mot de passe)
+%admins ALL=(ALL:ALL) ALL
+
+# support : seulement le script d'analyse des logs, rien d'autre
+support ALL=(root) NOPASSWD: /usr/local/sbin/analyse_logs.sh

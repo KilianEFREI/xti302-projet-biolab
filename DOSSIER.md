@@ -1,14 +1,14 @@
 # Dossier - Durcissement du serveur BioLab
 
-Kilian NIVET - B2 Cyber - XTI302-CYB - contexte C (BioLab), projet fait seul.
+Kilian NIVET et Ethan PICOLO - B2 Cyber - XTI302-CYB - contexte C (BioLab).
 
 Références utilisées : guide ANSSI-BP-028 *Recommandations de configuration d'un système GNU/Linux* (noté BP-028), guide ANSSI *Usage sécurisé d'(Open)SSH* (noté ANSSI SSH), pages de manuel.
 
 ## 1. Tableau de conformité
 
-| Exig. | Ce que j'ai fait | Test(s) dans verifier.sh | ANSSI |
+| Exig. | Ce qu'on a fait | Test(s) dans verifier.sh | ANSSI |
 |---|---|---|---|
-| C1 | `creer_comptes.sh` lit `comptes.csv`, crée les groupes qui manquent, crée le compte s'il existe pas puis fait `usermod` à chaque fois (relancer = pas de doublon, pas d'erreur). | `test_C1_comptes` (relit le csv), `test_C1_doublons`, `test_C1_invite_nologin` | BP-028 R33 (comptes nominatifs) |
+| C1 | 2 admins nominatifs (knivet, epicolo). `creer_comptes.sh` lit `comptes.csv`, crée les groupes qui manquent, crée le compte s'il existe pas puis fait `usermod` à chaque fois (relancer = pas de doublon, pas d'erreur). | `test_C1_comptes` (relit le csv), `test_C1_doublons`, `test_C1_invite_nologin` | BP-028 R33 (comptes nominatifs) |
 | C2 | Dossiers de /srv en `700 root:root` + ACL par groupe, et les mêmes en ACL par défaut (`setfacl -d`) pour les fichiers créés plus tard. | 8 tests `test_C2_*` : ce qui doit marcher (technique écrit dans donnees_brutes...) et ce qui doit être refusé (chercheur n'écrit pas dans donnees_brutes...), + `test_C2_acl_defaut` | BP-028 R50 |
 | C3 | `/etc/sudoers.d/biolab` : `%admins` a tout, `support` a seulement `/usr/local/sbin/analyse_logs.sh`. Le compte `debian` de l'image est retiré du groupe sudo. Fichier vérifié avec `visudo -c` avant d'être copié. | `test_C3_admins`, `test_C3_support`, `test_C3_personne_dautre` | BP-028 R38, R39, R43 |
 | C4 | `passwd -l root`, dossiers perso en 700. | `test_C4_root_verrouille`, `test_C4_homes` | BP-028 R33, R50 |
@@ -44,7 +44,7 @@ Résultat sur la VM : `--- 47 / 47 tests reussis`, code de sortie 0.
 
 ### 2.2 SSH
 
-- **Fichier `01-biolab.conf`** : sshd garde la **première** valeur qu'il lit pour chaque option. Avec le préfixe 01 mon fichier est lu avant les autres de sshd_config.d.
+- **Fichier `01-biolab.conf`** : sshd garde la **première** valeur qu'il lit pour chaque option. Avec le préfixe 01 notre fichier est lu avant les autres de sshd_config.d.
 - **MaxAuthTries 3** (le sujet autorise 4 max) : avec des clés, un utilisateur normal réussit du premier coup, 3 laisse de la marge si le client essaie plusieurs clés.
 - **15 minutes d'inactivité** : `ChannelTimeout session=15m` ferme une session où il se passe rien pendant 15 min. `ClientAliveInterval 300` et `ClientAliveCountMax 3` coupent en plus un client qui répond plus (3 x 5 min).
 - **Invités** : `ForceCommand internal-sftp` force le serveur SFTP intégré à sshd, quoi que le client demande. Comme c'est intégré à sshd, ça marche même avec le shell `nologin`. `PermitTTY no` et `AllowTcpForwarding no` empêchent d'avoir un terminal ou d'utiliser le serveur comme rebond.
@@ -53,14 +53,14 @@ Résultat sur la VM : `--- 47 / 47 tests reussis`, code de sortie 0.
 
 - **policy drop + liste de ce qui est autorisé** : plus sûr que bloquer au cas par cas, un nouveau service installé par erreur sera pas joignable.
 - **`ct state established,related accept`** : sans ça les réponses aux connexions que le serveur ouvre (apt, DNS) seraient bloquées.
-- **Pas de `flush ruleset`** : mon fichier remplace seulement la table `inet filter`. Avec `flush ruleset`, recharger nftables effaçait aussi la table de fail2ban et les IP bannies.
+- **Pas de `flush ruleset`** : notre fichier remplace seulement la table `inet filter`. Avec `flush ruleset`, recharger nftables effaçait aussi la table de fail2ban et les IP bannies.
 - **fail2ban 5 échecs / 10 min / ban 30 min** : un humain se trompe 1 ou 2 fois. 30 min ralentit énormément une force brute sans bloquer longtemps un vrai utilisateur. Pour me débannir pendant les tests : `fail2ban-client set sshd unbanip <ip>`.
 - **backend systemd** : Debian 13 minimale a pas de `/var/log/auth.log`, les logs SSH sont seulement dans le journal.
 
 ### 2.4 analyse_logs.sh
 
 - Il lit `journalctl -u ssh` : ça marche que le processus s'appelle `sshd` (Debian 12) ou `sshd-session` (Debian 13).
-- **Une connexion ratée = une connexion fermée avant l'authentification** (`Connection closed/reset by ... user`, `Disconnected from ... user`, `Disconnecting ... user`). Avec l'authentification par clé il y a plus de lignes `Failed password`, donc compter que ces lignes donnerait toujours 0. Au début j'avais oublié `Connection reset by`, je l'ai vu en testant une vraie attaque depuis l'hôte.
+- **Une connexion ratée = une connexion fermée avant l'authentification** (`Connection closed/reset by ... user`, `Disconnected from ... user`, `Disconnecting ... user`). Avec l'authentification par clé il y a plus de lignes `Failed password`, donc compter que ces lignes donnerait toujours 0. Au début on avait oublié `Connection reset by`, on l'a vu en testant une vraie attaque depuis l'hôte.
 - **Seuil 5** : le même que fail2ban, un humain arrive pas à 5 connexions ratées depuis la même IP.
 - **Le seuil est vérifié (nombre uniquement)** et la sortie de journalctl est mise dans une variable avec `--no-pager` : le script tourne en root via sudo, et un pager comme `less` permet de lancer un shell root (voir GTFOBins).
 
@@ -71,7 +71,7 @@ Résultat sur la VM : `--- 47 / 47 tests reussis`, code de sortie 0.
 - **`-A -X`** pour garder les ACL, sinon une restauration redonnerait des droits faux.
 - **Copie dans `en_cours_<date>` puis renommage** : si rsync plante il reste pas une version à moitié faite qui servirait de base à la suivante.
 - **Arrêt si le disque est pas monté** : sinon la sauvegarde remplirait le disque système.
-- **UUID dans fstab** : sur ma VM, les noms `sda` et `sdb` se sont inversés entre deux démarrages. Avec `/dev/sdb` dans fstab on aurait monté le mauvais disque.
+- **UUID dans fstab** : sur notre VM, les noms `sda` et `sdb` se sont inversés entre deux démarrages. Avec `/dev/sdb` dans fstab on aurait monté le mauvais disque.
 - **installer.sh ne reformate jamais** : il prépare le disque seulement si `/sauvegardes` est pas dans fstab, et seulement un disque sans partition ni système de fichiers.
 - **700 root** : la sauvegarde contient une copie de `/etc/shadow`, elle doit être aussi protégée que l'original.
 
@@ -104,7 +104,7 @@ Fichiers SUID root présents :
 | /usr/lib/dbus-1.0/dbus-daemon-launch-helper | lance des services système pour dbus, seulement exécutable par le groupe messagebus |
 | /usr/lib/openssh/ssh-keysign | sert à l'authentification « host-based », désactivée par défaut |
 
-Je les ai gardés parce qu'ils font partie de Debian et sont mis à jour par les paquets. `test_D3_suid` compare avec cette liste : un nouveau fichier SUID (porte dérobée par exemple) fait passer le test en KO.
+On les a gardés parce qu'ils font partie de Debian et sont mis à jour par les paquets. `test_D3_suid` compare avec cette liste : un nouveau fichier SUID (porte dérobée par exemple) fait passer le test en KO.
 
 ### 2.8 verifier.sh
 
@@ -158,4 +158,4 @@ Exemple testé sur la VM : un chercheur écrit `/srv/publications/rapport.txt`, 
 
 Pour un dossier entier c'est pareil avec le dossier comme source (`.../srv/analyses/` vers `/srv/analyses/`). Pour ne rien écraser, on peut d'abord restaurer dans un dossier temporaire et comparer.
 
-**Erreur faite pendant le test :** j'ai lancé `ls /sauvegardes/20*/` sans être root. Le `*` est remplacé par mon shell avant sudo, et mon compte peut pas lire /sauvegardes, donc rien trouvé. Il faut faire toute la commande en root (`sudo -i` ou `sudo bash -c '...'`). Ça montre au passage que B3 marche.
+**Erreur faite pendant le test :** on a lancé `ls /sauvegardes/20*/` sans être root. Le `*` est remplacé par notre shell avant sudo, et notre compte peut pas lire /sauvegardes, donc rien trouvé. Il faut faire toute la commande en root (`sudo -i` ou `sudo bash -c '...'`). Ça montre au passage que B3 marche.

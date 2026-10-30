@@ -1,6 +1,6 @@
 # Projet XTI302-CYB - Durcir un serveur Linux et le prouver
 
-Kilian NIVET - B2 Cyber (projet fait seul)
+Kilian NIVET et Ethan PICOLO - B2 Cyber
 
 **Contexte C : laboratoire BioLab.** Le serveur héberge les données du labo dans `/srv` :
 
@@ -30,7 +30,7 @@ Les invités n'ont pas de shell (`nologin`), ils peuvent seulement récupérer d
 - VM Debian 13 minimale (VirtualBox) avec un compte qui a sudo (sur l'image utilisée : `debian`).
 - Un **second disque vide** de 2 Go pour les sauvegardes. installer.sh le trouve tout seul (disque sans partition ni système de fichiers, moins de 10 Go), le formate en ext4 et le monte sur `/sauvegardes` par UUID. Il le fait seulement si `/sauvegardes` n'est pas déjà dans `/etc/fstab`, donc relancer l'installer ne reformate jamais le disque.
 - Réseau : une carte NAT (accès internet pour apt) et une carte host-only (192.168.56.10) pour se connecter depuis l'hôte.
-- Côté hôte : les clés privées de test (knivet, support, jleroy, mfaure). Elles ne sont **pas** dans le dépôt, seules les `.pub` sont dans `config/keys/`.
+- Côté hôte : les clés privées de test (knivet, epicolo, support, jleroy, mfaure). Elles ne sont **pas** dans le dépôt, seules les `.pub` sont dans `config/keys/`.
 
 ## Installation
 
@@ -48,9 +48,9 @@ chmod +x *.sh
 sudo ./installer.sh
 ```
 
-L'installer demande de choisir le mot de passe de l'admin `knivet` (il en a besoin pour sudo, la connexion SSH se fait par clé).
+L'installer demande de choisir le mot de passe de chaque admin (`knivet` et `epicolo`) (il en a besoin pour sudo, la connexion SSH se fait par clé).
 
-**Attention :** à la fin, le compte `debian` perd sudo et son mot de passe, et root est verrouillé. Il faut se reconnecter avec l'admin :
+**Attention :** à la fin, le compte `debian` perd sudo et son mot de passe, et root est verrouillé. Il faut se reconnecter avec un des admins :
 
 ```
 ssh -i ~/.ssh/biolab/knivet knivet@192.168.56.10

@@ -1,5 +1,6 @@
 login;nom;groupe_principal;groupes_secondaires
 knivet;Kilian Nivet;admins;acces_ssh
+epicolo;Ethan Picolo;admins;acces_ssh
 support;Compte support;support;acces_ssh
 tmoreau;Thomas Moreau;technique;
 lgarnier;Lucie Garnier;technique;

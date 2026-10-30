@@ -14,7 +14,7 @@ fi
 
 echo "== paquets"
 apt-get update -q
-apt-get install -y -q acl sudo nftables fail2ban python3-systemd
+apt-get install -y -q acl sudo nftables fail2ban python3-systemd rsync cron unattended-upgrades
 
 echo "== comptes, groupes et /srv"
 ./creer_comptes.sh || exit 1
@@ -69,6 +69,20 @@ echo "== analyse_logs.sh (J4)"
 # appartient a root et modifiable que par root : sinon support pourrait
 # changer le script et faire n'importe quoi en root avec sudo
 install -m 755 -o root -g root analyse_logs.sh /usr/local/sbin/analyse_logs.sh
+
+echo "== mises a jour automatiques (D1)"
+install -m 644 config/apt/20auto-upgrades /etc/apt/apt.conf.d/20auto-upgrades
+systemctl enable apt-daily.timer apt-daily-upgrade.timer
+
+echo "== sauvegarde (B1 a B3)"
+install -m 755 -o root -g root sauvegarde.sh /usr/local/sbin/sauvegarde.sh
+install -m 644 -o root -g root config/cron.d/sauvegarde /etc/cron.d/sauvegarde
+if mountpoint -q /sauvegardes; then
+    chown root:root /sauvegardes
+    chmod 700 /sauvegardes
+else
+    echo "ATTENTION : /sauvegardes est pas monte (voir README, preparation du disque)"
+fi
 
 echo "== root et compte debian"
 # C4 : root verrouille

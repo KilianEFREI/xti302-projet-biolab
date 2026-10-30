@@ -1,0 +1,5 @@
+# B2 : sauvegarde tous les jours a 2h du matin
+# (le script ecrit lui-meme dans /var/log/sauvegarde.log)
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 2 * * * root /usr/local/sbin/sauvegarde.sh > /dev/null 2>&1

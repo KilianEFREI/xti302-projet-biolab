@@ -273,6 +273,116 @@ test_J4_code_retour() {
     resultat $? "J4  analyse_logs.sh renvoie 2 au-dessus du seuil et 0 en dessous"
 }
 
+# ---------- B1 a B4 : sauvegarde ----------
+
+SAUV=/sauvegardes
+
+# derniere et avant-derniere version
+derniere() { ls -1d "$SAUV"/20*/ 2>/dev/null | tail -n 1; }
+avant_derniere() { ls -1d "$SAUV"/20*/ 2>/dev/null | tail -n 2 | head -n 1; }
+
+test_B1_disque() {
+    # monte, sur un autre disque que le systeme, et monte par UUID dans fstab
+    mountpoint -q "$SAUV" \
+        && [ "$(findmnt -no SOURCE "$SAUV")" != "$(findmnt -no SOURCE /)" ] \
+        && grep -qE "^UUID=[^ ]+[[:space:]]+$SAUV[[:space:]]" /etc/fstab
+    resultat $? "B1  $SAUV est un disque a part, monte par UUID"
+}
+
+test_B1_version() {
+    local d
+    d=$(derniere)
+    [ -n "$d" ] && [ -d "$d/srv" ] && [ -d "$d/etc" ]
+    resultat $? "B1  une version datee contient /srv et /etc"
+}
+
+test_B1_acl() {
+    local d
+    d=$(derniere)
+    [ -n "$d" ] && [ "$(getfacl -p --omit-header /srv/analyses)" = "$(getfacl -p --omit-header "$d/srv/analyses")" ]
+    resultat $? "B1  les ACL sont conservees dans la sauvegarde"
+}
+
+# un fichier qui a pas change est le meme fichier (meme inode) dans les 2 dernieres versions
+test_B1_incremental() {
+    local a b
+    a=$(avant_derniere)
+    b=$(derniere)
+    [ -n "$a" ] && [ "$a" != "$b" ] && [ "$(stat -c %i "$a/etc/hostname")" = "$(stat -c %i "$b/etc/hostname")" ]
+    resultat $? "B1  sauvegarde incrementale (fichier inchange = lien dur)"
+}
+
+test_B1_rotation() {
+    local nb
+    nb=$(ls -1d "$SAUV"/20*/ 2>/dev/null | wc -l)
+    [ "$nb" -ge 1 ] && [ "$nb" -le 7 ] && grep -q "^GARDER=7" /usr/local/sbin/sauvegarde.sh
+    resultat $? "B1  7 versions gardees au maximum ($nb actuellement)"
+}
+
+test_B2_planifiee() {
+    grep -q "/usr/local/sbin/sauvegarde.sh" /etc/cron.d/sauvegarde 2>/dev/null && systemctl is-active --quiet cron
+    resultat $? "B2  sauvegarde planifiee avec cron"
+}
+
+test_B2_journal() {
+    grep -q "terminee" /var/log/sauvegarde.log 2>/dev/null
+    resultat $? "B2  chaque sauvegarde est journalisee (/var/log/sauvegarde.log)"
+}
+
+test_B3_droits() {
+    [ "$(stat -c '%U %a' "$SAUV")" = "root 700" ] && ! en_tant_que "$TECH" "ls $SAUV"
+    resultat $? "B3  $SAUV accessible qu'en root (admins via sudo)"
+}
+
+# on restaure un fichier de la derniere version dans un dossier temporaire
+test_B4_restauration() {
+    local d tmp r
+    d=$(derniere)
+    tmp=$(mktemp -d)
+    rsync -aAX "$d/etc/hostname" "$tmp/" 2> /dev/null && cmp -s "$tmp/hostname" "$d/etc/hostname"
+    r=$?
+    rm -rf "$tmp"
+    [ -n "$d" ] && [ $r -eq 0 ]
+    resultat $? "B4  restauration d'un fichier depuis une version"
+}
+
+# ---------- D1 a D3 : systeme ----------
+
+test_D1_installe() {
+    dpkg -s unattended-upgrades 2>/dev/null | grep -q "Status: install ok installed"
+    resultat $? "D1  unattended-upgrades est installe"
+}
+
+test_D1_active() {
+    apt-config dump | grep -q 'APT::Periodic::Unattended-Upgrade "1"' \
+        && systemctl is-enabled --quiet apt-daily-upgrade.timer
+    resultat $? "D1  mises a jour de securite automatiques activees"
+}
+
+# tout ce qui ecoute hors de la machine doit etre SSH (22)
+# ou le client DHCP (68 et 546 en udp, il recoit les reponses du serveur DHCP)
+test_D2_ecoutes() {
+    local autres
+    autres=$(ss -Htuln | awk '{print $5}' | grep -vE ':(22|68|546)$' | grep -vE '^(127\.|\[::1\])')
+    [ -z "$autres" ]
+    resultat $? "D2  rien d'autre que SSH (et le client DHCP) n'ecoute sur le reseau"
+}
+
+test_D3_modifiable_par_tous() {
+    local f
+    f=$(find / \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /tmp -o -path /var/tmp \) -prune \
+        -o -type f -perm -0002 -print 2>/dev/null)
+    [ -z "$f" ]
+    resultat $? "D3  aucun fichier modifiable par tous hors dossiers temporaires"
+}
+
+test_D3_suid() {
+    local inconnus
+    inconnus=$(comm -23 <(find / -xdev -type f -perm -4000 2>/dev/null | sort) <(sort "$DOSSIER/config/suid_attendus.txt"))
+    [ -z "$inconnus" ]
+    resultat $? "D3  tous les fichiers SUID sont dans la liste connue"
+}
+
 # ---------- lancement de tous les tests ----------
 
 for t in $(declare -F | awk '{print $3}' | grep '^test_'); do

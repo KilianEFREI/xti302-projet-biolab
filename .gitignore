@@ -1,0 +1,5 @@
+# jamais de cle privee dans le depot
+*.key
+id_*
+!*.pub
+*.swp

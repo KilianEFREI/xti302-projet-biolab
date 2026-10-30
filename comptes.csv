@@ -1,0 +1,11 @@
+login;nom;groupe_principal;groupes_secondaires
+knivet;Kilian Nivet;admins;acces_ssh
+support;Compte support;support;acces_ssh
+tmoreau;Thomas Moreau;technique;
+lgarnier;Lucie Garnier;technique;
+pdurand;Paul Durand;chercheurs;
+cblanc;Claire Blanc;chercheurs;
+arobert;Antoine Robert;doctorants;
+emercier;Emma Mercier;doctorants;
+jleroy;Julie Leroy;invite;acces_ssh
+mfaure;Marc Faure;invite;acces_ssh

@@ -217,6 +217,62 @@ test_S5_config() {
     resultat $? "S5  config dans sshd_config.d et sshd -t valide"
 }
 
+# ---------- J1 a J4 : journaux et defense ----------
+
+test_J1_fail2ban_actif() {
+    systemctl is-active --quiet fail2ban && fail2ban-client status sshd > /dev/null 2>&1
+    resultat $? "J1  fail2ban est actif et surveille SSH"
+}
+
+test_J1_config() {
+    local essais action
+    essais=$(fail2ban-client get sshd maxretry 2>/dev/null)
+    action=$(fail2ban-client get sshd actions 2>/dev/null)
+    [ -n "$essais" ] && [ "$essais" -le 5 ] && echo "$action" | grep -q nftables
+    resultat $? "J1  fail2ban bannit apres 5 echecs max, avec nftables"
+}
+
+test_J2_politique_drop() {
+    nft list chain inet filter input 2>/dev/null | grep -q "policy drop"
+    resultat $? "J2  politique par defaut du pare-feu : drop"
+}
+
+test_J2_ssh_autorise() {
+    nft list chain inet filter input 2>/dev/null | grep -q "tcp dport 22 accept"         && nft list chain inet filter input | grep -q "ct state established,related accept"
+    resultat $? "J2  SSH et connexions etablies autorises"
+}
+
+test_J2_au_demarrage() {
+    systemctl is-enabled --quiet nftables && cmp -s "$DOSSIER/config/nftables.conf" /etc/nftables.conf
+    resultat $? "J2  regles chargees au demarrage (service nftables active)"
+}
+
+test_J3_persistant() {
+    systemd-analyze cat-config systemd/journald.conf 2>/dev/null | grep -q "^Storage=persistent"         && [ -d /var/log/journal ]
+    resultat $? "J3  journal persistant (Storage=persistent, /var/log/journal)"
+}
+
+test_J4_installe() {
+    local f=/usr/local/sbin/analyse_logs.sh
+    # le script doit appartenir a root et etre modifiable que par root
+    [ -x "$f" ] && [ "$(stat -c %U "$f")" = "root" ] && [ "$(stat -c %a "$f")" = "755" ]
+    resultat $? "J4  analyse_logs.sh installe, appartient a root, modifiable que par root"
+}
+
+# on fabrique un faux log avec 3 connexions ratees de la meme IP
+test_J4_code_retour() {
+    local log r1 r2
+    log=$(mktemp)
+    for p in 1 2 3; do
+        echo "sshd-session[10$p]: Connection closed by invalid user test 203.0.113.9 port 4000$p [preauth]" >> "$log"
+    done
+    /usr/local/sbin/analyse_logs.sh -f "$log" -s 3 > /dev/null; r1=$?
+    /usr/local/sbin/analyse_logs.sh -f "$log" -s 10 > /dev/null; r2=$?
+    rm -f "$log"
+    [ $r1 -eq 2 ] && [ $r2 -eq 0 ]
+    resultat $? "J4  analyse_logs.sh renvoie 2 au-dessus du seuil et 0 en dessous"
+}
+
 # ---------- lancement de tous les tests ----------
 
 for t in $(declare -F | awk '{print $3}' | grep '^test_'); do

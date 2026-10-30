@@ -14,7 +14,7 @@ fi
 
 echo "== paquets"
 apt-get update -q
-apt-get install -y -q acl sudo
+apt-get install -y -q acl sudo nftables fail2ban python3-systemd
 
 echo "== comptes, groupes et /srv"
 ./creer_comptes.sh || exit 1
@@ -45,6 +45,30 @@ if ! sshd -t; then
     exit 1
 fi
 systemctl restart ssh
+
+echo "== journal persistant (J3)"
+install -d -m 755 /etc/systemd/journald.conf.d
+install -m 644 config/journald.conf.d/10-persistent.conf /etc/systemd/journald.conf.d/10-persistent.conf
+systemctl restart systemd-journald
+
+echo "== pare-feu nftables (J2)"
+# nft -c verifie le fichier sans l'appliquer
+nft -c -f config/nftables.conf || exit 1
+install -m 644 -o root -g root config/nftables.conf /etc/nftables.conf
+# enable : les regles sont rechargees a chaque demarrage
+systemctl enable nftables
+systemctl restart nftables
+
+echo "== fail2ban (J1)"
+install -m 644 config/fail2ban/jail.d/sshd-biolab.conf /etc/fail2ban/jail.d/sshd-biolab.conf
+systemctl enable fail2ban
+# restart apres nftables, car nftables.conf vide toutes les tables (flush ruleset)
+systemctl restart fail2ban
+
+echo "== analyse_logs.sh (J4)"
+# appartient a root et modifiable que par root : sinon support pourrait
+# changer le script et faire n'importe quoi en root avec sudo
+install -m 755 -o root -g root analyse_logs.sh /usr/local/sbin/analyse_logs.sh
 
 echo "== root et compte debian"
 # C4 : root verrouille

@@ -37,13 +37,13 @@ Les invités n'ont pas de shell (nologin), ils peuvent seulement récupérer des
 Copier le dépôt dans la VM depuis le PC :
 
 ```
-scp -r xti302-projet-biolab debian@192.168.56.10:~/
+scp -r xti302-projet-biolab-kilian-ethan debian@192.168.56.10:~/
 ```
 
 Puis dans la VM :
 
 ```
-cd ~/xti302-projet-biolab
+cd ~/xti302-projet-biolab-kilian-ethan
 chmod +x *.sh
 sudo ./installer.sh
 ```
